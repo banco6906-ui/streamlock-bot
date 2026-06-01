@@ -1,12 +1,16 @@
 # menus.py
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import CallbackQueryHandler, MessageHandler, filters, ContextTypes
+from telegram.ext import CallbackQueryHandler, MessageHandler, CommandHandler, filters, ContextTypes
 
-# Replace with your and your moderators' real Telegram User IDs
-STAFF_IDS = [123456789, 987654321]
+# 🟢 CHANGE THIS: Put your real Telegram User ID here so you receive the tickets
+STAFF_IDS = [123456789]
+
+# A clean string of your locker URL so menus.py doesn't have to look back at main.py
+ADBLUEMEDIA_LOCKER_URL = "https://locked-content.com/?a5c505a"
 
 def register_menu_handlers(application):
-    # Register the menu-driven buttons and support chat into the engine
+    # Register commands and callback buttons into the main app engine
+    application.add_handler(CommandHandler("start", start_menu_trigger))
     application.add_handler(CallbackQueryHandler(show_guides, pattern="view_guides"))
     application.add_handler(CallbackQueryHandler(send_guide_text, pattern="guide_"))
     application.add_handler(CallbackQueryHandler(back_to_main, pattern="back_main"))
@@ -15,7 +19,7 @@ def register_menu_handlers(application):
     # Listen to messages sent by staff members replying to support tickets
     application.add_handler(MessageHandler(filters.REPLY & filters.Chat(chat_id=set(STAFF_IDS)), handle_staff_reply))
 
-# 1. NEW DYNAMIC START TEXT & KEYBOARD (Called inside main.py)
+# FUNCTION TO GENERATE THE CORE BUTTON MATRIX
 def get_main_menu_keyboard(user_id, locker_url):
     personalized_url = f"{locker_url}&s1={user_id}"
     keyboard = [
@@ -25,15 +29,26 @@ def get_main_menu_keyboard(user_id, locker_url):
     ]
     return InlineKeyboardMarkup(keyboard)
 
-# 2. DEVICE SETUP GUIDES SUB-MENU
+# THE ASYNC START TRIGGER
+async def start_menu_trigger(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    reply_markup = get_main_menu_keyboard(user_id, ADBLUEMEDIA_LOCKER_URL)
+    
+    await update.message.reply_text(
+        f"Hello! To get your high-speed 24h IPTV Test Line, please complete one quick verification offer below.\n\n"
+        "As soon as you finish, your line will be sent directly into this chat instantly!",
+        reply_markup=reply_markup
+    )
+
+# DEVICE SETUP GUIDES SUB-MENU
 async def show_guides(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
     keyboard = [
-        [InlineKeyboardButton("🟠 Amazon Firestick Setup", callback_data="guide_fire")],
-        [InlineKeyboardButton("🔵 Smart TV (Smarters Pro)", callback_data="guide_smart")],
-        [InlineKeyboardButton("⬅️ Back to Main Menu", callback_data="back_main")]
+        [InlineKeyboardButton("Amazon Firestick Setup", callback_data="guide_fire")],
+        [InlineKeyboardButton("Smart TV (Smarters Pro)", callback_data="guide_smart")],
+        [InlineKeyboardButton("Back to Main Menu", callback_data="back_main")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
@@ -43,17 +58,17 @@ async def show_guides(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown"
     )
 
-# 3. GUIDE CONTENT RESPONSES
+# GUIDE CONTENT RESPONSES
 async def send_guide_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
-    keyboard = [[InlineKeyboardButton("⬅️ Back to Guides", callback_data="view_guides")]]
+    keyboard = [[InlineKeyboardButton("Back to Guides", callback_data="view_guides")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     if query.data == "guide_fire":
         text = (
-            "🟠 **Firestick Installation Instructions:**\n\n"
+            "**Firestick Installation Instructions:**\n\n"
             "1. Download the **Downloader App** from your Amazon App Store.\n"
             "2. Open Downloader and enter your application installer code.\n"
             "3. Select Xtream Codes API inside the app once installed.\n"
@@ -61,7 +76,7 @@ async def send_guide_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     elif query.data == "guide_smart":
         text = (
-            "🔵 **Smart TV Installation Instructions:**\n\n"
+            "**Smart TV Installation Instructions:**\n\n"
             "1. Search for **IPTV Smarters Pro** on your TV app store.\n"
             "2. Install and launch the application.\n"
             "3. Select 'Login with Xtream Codes API'.\n"
@@ -70,12 +85,11 @@ async def send_guide_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode="Markdown")
 
-# BACK TO MAIN ROUTER
+# BACK TO MAIN MENU ROUTER
 async def back_to_main(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
-    from main import ADBLUEMEDIA_LOCKER_URL  # Import configuration safely
     user_id = query.from_user.id
     reply_markup = get_main_menu_keyboard(user_id, ADBLUEMEDIA_LOCKER_URL)
     
@@ -85,7 +99,7 @@ async def back_to_main(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=reply_markup
     )
 
-# 4. STAFF SUPPORT FORWARDING (ANONYMOUS TICKETS)
+# STAFF SUPPORT FORWARDING
 async def handle_support_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -94,7 +108,6 @@ async def handle_support_click(update: Update, context: ContextTypes.DEFAULT_TYP
         chat_id=query.message.chat_id,
         text="📝 Please send your support question directly as a text message right now. Our staff will see it and reply right here."
     )
-    # Set a small temporary context flag so the next message from this user gets forwarded
     context.user_data["waiting_for_support"] = True
 
 # HOOK TO FORWARD INCOMING MESSAGES TO STAFF
