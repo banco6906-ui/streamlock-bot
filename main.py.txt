@@ -1,0 +1,84 @@
+import os
+import uvicorn
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, Request, Response
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, ContextTypes
+
+# --- CONFIGURATION ---
+BOT_TOKEN = "8635624388:AAGscX2gX0e1hwe6LfCV63XicdvaqZJcszs"
+ADBLUEMEDIA_LOCKER_URL = "https://locked-content.com/?a5c505a"
+
+# Simple Mock Pool 
+IPTV_POOL = ["http://line1.m3u", "http://line2.m3u", "http://line3.m3u"]
+USED_USERS = set()  
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global tg_bot_app
+    print("🤖 Initializing Telegram Bot Engine...")
+    tg_bot_app = Application.builder().token(BOT_TOKEN).build()
+    tg_bot_app.add_handler(CommandHandler("start", start_command))
+    
+    await tg_bot_app.initialize()
+    await tg_bot_app.updater.start_polling()
+    await tg_bot_app.start()
+    print("🚀 Bot and Server are fully linked and online!")
+    
+    yield
+    
+    print("🛑 Shutting down Telegram Bot Engine...")
+    await tg_bot_app.updater.stop()
+    await tg_bot_app.stop()
+    await tg_bot_app.shutdown()
+
+app = FastAPI(lifespan=lifespan)
+tg_bot_app = None
+
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    personalized_url = f"{ADBLUEMEDIA_LOCKER_URL}&s1={user_id}"
+    
+    keyboard = [[InlineKeyboardButton("🔓 Complete Survey to Unlock", url=personalized_url)]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await update.message.reply_text(
+        f"Hello! To get your high-speed 24h IPTV Test Line, please complete one quick verification offer below.\n\n"
+        "As soon as you finish, your line will be sent directly into this chat instantly!",
+        reply_markup=reply_markup
+    )
+
+@app.get("/adblue-postback")
+async def adblue_postback(request: Request):
+    user_id = request.query_params.get("user_id")
+    payout = request.query_params.get("payout")
+    
+    if not user_id:
+        return Response(content="Missing user_id parameter", status_code=400)
+    
+    if user_id in USED_USERS:
+        print(f"⚠️ User {user_id} tried to claim a second line.")
+        return Response(content="DUP_USER", status_code=200)
+
+    print(f"💰 Conversion received! User: {user_id} generated a payout of ${payout}")
+
+    if IPTV_POOL:
+        assigned_line = IPTV_POOL.pop(0) 
+        USED_USERS.add(user_id)          
+        
+        success_message = (
+            "🎉 **Verification Successful!**\n\n"
+            "Thank you for completing the survey. Here is your 24-hour IPTV Test Line:\n\n"
+            f"`{assigned_line}`\n\n"
+            "Paste this URL into your favorite IPTV Player application."
+        )
+        
+        await tg_bot_app.bot.send_message(chat_id=int(user_id), text=success_message, parse_mode="Markdown")
+        return Response(content="SUCCESS", status_code=200)
+    else:
+        error_message = "❌ Verification verified, but our test pool is empty right now! Please contact support."
+        await tg_bot_app.bot.send_message(chat_id=int(user_id), text=error_message)
+        return Response(content="NO_LINES", status_code=200)
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)
