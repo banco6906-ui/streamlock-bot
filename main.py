@@ -20,14 +20,15 @@ async def lifespan(app: FastAPI):
     print("🤖 Initializing Telegram Bot Engine...")
     tg_bot_app = Application.builder().token(BOT_TOKEN).build()
     
-    # 1. Standard commands
-    tg_bot_app.add_handler(CommandHandler("start", start_command))
-    
-    # 2. Register all sub-menus and staff listeners from menus.py
+    # 1. Register all sub-menus and staff handlers from menus.py FIRST
+    # This ensures menu layouts and navigation buttons take immediate priority
     menus.register_menu_handlers(tg_bot_app)
     
-    # 3. Register user text tracking for active support requests
+    # 2. Register user text tracking for active support requests
     tg_bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, menus.check_and_forward_to_staff))
+    
+    # NOTE: The old local start_command handler has been safely removed here 
+    # so it no longer blocks your menus.py routing system.
     
     await tg_bot_app.initialize()
     await tg_bot_app.updater.start_polling()
@@ -43,19 +44,6 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 tg_bot_app = None
-
-# MODIFIED START COMMAND USING THE NEW KEYBOARD FUNCTION
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
-    
-    # Grab the multi-button inline layout from menus.py
-    reply_markup = menus.get_main_menu_keyboard(user_id, ADBLUEMEDIA_LOCKER_URL)
-    
-    await update.message.reply_text(
-        f"Hello! To get your high-speed 24h IPTV Test Line, please complete one quick verification offer below.\n\n"
-        "As soon as you finish, your line will be sent directly into this chat instantly!",
-        reply_markup=reply_markup
-    )
 
 @app.get("/adblue-postback")
 async def adblue_postback(request: Request):
