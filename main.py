@@ -7,7 +7,7 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 # --- CONFIGURATION ---
-BOT_TOKEN = "8635624388:AAGscX2gX0e1hwe6LfCV63XicdvaqZJcszs"
+BOT_TOKEN = "8635624388:AAGpK-t63ffyubZ4XkVVRpxpIuoBBWWvsDs"
 ADBLUEMEDIA_LOCKER_URL = "https://locked-content.com/?a5c505a"
 
 # Simple Mock Pool 
